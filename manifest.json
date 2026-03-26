@@ -1,0 +1,22 @@
+{
+  "name": "The Place of Lores Nails",
+  "short_name": "The",
+  "description": "Uñas y belleza - Tu espacio de cuidado personal",
+  "start_url": "/theplaceofloresnails/",
+  "scope": "/theplaceofloresnails/",
+  "display": "standalone",
+  "background_color": "#ec4899",
+  "theme_color": "#ec4899",
+  "icons": [
+    {
+      "src": "/theplaceofloresnails/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/theplaceofloresnails/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
