@@ -1,6 +1,5 @@
-// admin-app.js - Panel de administración (VERSIÓN GENÉRICA)
+// admin-app.js - Panel de administración (VERSIÓN CORREGIDA CON HORARIOS POR DÍA)
 // CON BOTÓN DE NUEVA RESERVA MANUAL, CALENDARIO DE DISPONIBILIDAD
-// SIN DEPENDENCIA DE dias-cerrados.js - OBTIENE DÍAS CERRADOS DIRECTAMENTE DE SUPABASE
 
 console.log('🚀 ADMIN-APP.JS - Panel de administración con Nueva Reserva y Calendario Disponibilidad');
 
@@ -545,6 +544,10 @@ function AdminApp() {
         cargarHorarios();
     }, [nuevaReservaData.profesional_id, nuevaReservaData.fecha, nuevaReservaData.servicio, serviciosList]);
 
+    // ============================================
+    // FUNCIONES DE DISPONIBILIDAD
+    // ============================================
+    
     const cargarDisponibilidadMes = async (fecha, profesionalId) => {
         if (!profesionalId) return;
         
@@ -592,7 +595,8 @@ function AdminApp() {
             for (let d = 1; d <= diasEnMes; d++) {
                 const fechaStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
                 
-                let tieneDisponibilidad = false;
+                let horariosOcupados = 0;
+                const reservasDia = reservasPorFecha[fechaStr] || [];
                 
                 for (const horaIndice of horasTrabajo) {
                     const slotStr = indiceToHoraLegible(horaIndice);
@@ -600,19 +604,18 @@ function AdminApp() {
                     const slotStart = horas * 60 + minutos;
                     const slotEnd = slotStart + 60;
                     
-                    const reservasDia = reservasPorFecha[fechaStr] || [];
                     const tieneConflicto = reservasDia.some(reserva => {
                         const reservaStart = timeToMinutes(reserva.hora_inicio);
                         const reservaEnd = timeToMinutes(reserva.hora_fin);
                         return (slotStart < reservaEnd) && (slotEnd > reservaStart);
                     });
                     
-                    if (!tieneConflicto) {
-                        tieneDisponibilidad = true;
-                        break;
+                    if (tieneConflicto) {
+                        horariosOcupados++;
                     }
                 }
                 
+                const tieneDisponibilidad = horariosOcupados < horasTrabajo.length;
                 disponibilidad[fechaStr] = tieneDisponibilidad;
             }
             
@@ -622,7 +625,6 @@ function AdminApp() {
         }
     };
 
-    // 🔥 FUNCIÓN PARA CARGAR DISPONIBILIDAD DEL MES EN EL MODAL
     const cargarDisponibilidadDelMes = async (fecha, profesionalId = null) => {
         if (!profesionalId && profesionalesList.length > 0) {
             profesionalId = profesionalesList[0]?.id;
@@ -636,16 +638,16 @@ function AdminApp() {
             
             const horarios = await window.salonConfig.getHorariosProfesional(profesionalId);
             const horasTrabajo = horarios.horas || [];
-            const diasTrabajo = horarios.dias || []; 
+            const diasTrabajo = horarios.dias || [];
+            const horariosPorDia = horarios.horariosPorDia || {};
+            
+            console.log('=========================================');
+            console.log(`📊 Profesional ID: ${profesionalId}`);
+            console.log(`📊 Horarios por día:`, horariosPorDia);
+            console.log('=========================================');
             
             const profesionalObj = profesionalesList.find(p => p.id === profesionalId);
             const fechasLibresPersonales = profesionalObj?.fechas_libres || [];
-            
-            if (horasTrabajo.length === 0) {
-                setDisponibilidadDias({});
-                setDisponibilidadCargando(false);
-                return;
-            }
             
             const primerDia = new Date(year, month, 1);
             const ultimoDia = new Date(year, month + 1, 0);
@@ -675,7 +677,7 @@ function AdminApp() {
             
             const disponibilidad = {};
             const diasEnMes = ultimoDia.getDate();
-            const nombresDias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']; 
+            const nombresDias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
             
             for (let d = 1; d <= diasEnMes; d++) {
                 const fechaStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
@@ -686,29 +688,64 @@ function AdminApp() {
                 }
                 
                 const fechaActual = new Date(year, month, d);
-                const diaSemana = nombresDias[fechaActual.getDay()]; 
+                const diaSemana = nombresDias[fechaActual.getDay()];
                 
-                let tieneDisponibilidad = false;
+                const horariosDelDia = horariosPorDia[diaSemana] || [];
                 
-                if (diasTrabajo.length === 0 || diasTrabajo.includes(diaSemana)) {
-                    for (const horaIndice of horasTrabajo) {
-                        const slotStr = indiceToHoraLegible(horaIndice);
-                        const [horas, minutos] = slotStr.split(':').map(Number);
-                        const slotStart = horas * 60 + minutos;
-                        const slotEnd = slotStart + 60;
-                        
-                        const reservasDia = reservasPorFecha[fechaStr] || [];
-                        const tieneConflicto = reservasDia.some(reserva => {
-                            const reservaStart = timeToMinutes(reserva.hora_inicio);
-                            const reservaEnd = timeToMinutes(reserva.hora_fin);
-                            return (slotStart < reservaEnd) && (slotEnd > reservaStart);
-                        });
-                        
-                        if (!tieneConflicto) {
-                            tieneDisponibilidad = true;
-                            break;
+                if (horariosDelDia.length === 0) {
+                    disponibilidad[fechaStr] = false;
+                    continue;
+                }
+                
+                let trabajaEsteDia = true;
+                if (diasTrabajo.length > 0 && !diasTrabajo.includes(diaSemana)) {
+                    trabajaEsteDia = false;
+                }
+                
+                if (!trabajaEsteDia) {
+                    disponibilidad[fechaStr] = false;
+                    continue;
+                }
+                
+                let horariosOcupados = 0;
+                const reservasDia = reservasPorFecha[fechaStr] || [];
+                
+                const hoy = getCurrentLocalDate();
+                if (fechaStr === hoy) {
+                    console.log(`\n📅 Analizando HOY (${fechaStr}) - ${diaSemana}:`);
+                    console.log(`   Horarios del día:`, horariosDelDia.map(i => indiceToHoraLegible(i)));
+                    console.log(`   Reservas del día: ${reservasDia.length}`);
+                }
+                
+                for (const horaIndice of horariosDelDia) {
+                    const slotStr = indiceToHoraLegible(horaIndice);
+                    const [horas, minutos] = slotStr.split(':').map(Number);
+                    const slotStart = horas * 60 + minutos;
+                    const slotEnd = slotStart + 60;
+                    
+                    const tieneConflicto = reservasDia.some(reserva => {
+                        const reservaStart = timeToMinutes(reserva.hora_inicio);
+                        const reservaEnd = timeToMinutes(reserva.hora_fin);
+                        return (slotStart < reservaEnd) && (slotEnd > reservaStart);
+                    });
+                    
+                    if (tieneConflicto) {
+                        horariosOcupados++;
+                        if (fechaStr === hoy) {
+                            console.log(`   ❌ Horario ${slotStr} está OCUPADO`);
+                        }
+                    } else {
+                        if (fechaStr === hoy) {
+                            console.log(`   ✅ Horario ${slotStr} está LIBRE`);
                         }
                     }
+                }
+                
+                const tieneDisponibilidad = horariosOcupados < horariosDelDia.length;
+                
+                if (fechaStr === hoy) {
+                    console.log(`   📊 Total horarios del día: ${horariosDelDia.length}, Ocupados: ${horariosOcupados}`);
+                    console.log(`   🟢 Disponible: ${tieneDisponibilidad}\n`);
                 }
                 
                 disponibilidad[fechaStr] = tieneDisponibilidad;
@@ -722,23 +759,10 @@ function AdminApp() {
         }
     };
 
-    const cambiarMesDisponibilidad = (direccion) => {
-        const nuevaFecha = new Date(disponibilidadFecha);
-        nuevaFecha.setMonth(disponibilidadFecha.getMonth() + direccion);
-        setDisponibilidadFecha(nuevaFecha);
-        cargarDisponibilidadDelMes(nuevaFecha, profesionalSeleccionadoDispo);
-    };
-
-    const cambiarMes = (direccion) => {
-        const nuevaFecha = new Date(currentDate);
-        nuevaFecha.setMonth(currentDate.getMonth() + direccion);
-        setCurrentDate(nuevaFecha);
-        
-        if (nuevaReservaData.profesional_id) {
-            cargarDisponibilidadMes(nuevaFecha, nuevaReservaData.profesional_id);
-        }
-    };
-
+    // ============================================
+    // FUNCIONES DEL CALENDARIO
+    // ============================================
+    
     const getDaysInMonth = (date) => {
         const year = date.getFullYear();
         const month = date.getMonth();
@@ -758,14 +782,14 @@ function AdminApp() {
         
         return days;
     };
-
+    
     const formatDate = (date) => {
         const y = date.getFullYear();
         const m = (date.getMonth() + 1).toString().padStart(2, '0');
         const d = date.getDate().toString().padStart(2, '0');
         return `${y}-${m}-${d}`;
     };
-
+    
     const isDateAvailable = (date) => {
         if (!date || !nuevaReservaData.profesional_id) return false;
         
@@ -792,12 +816,29 @@ function AdminApp() {
         
         return fechasConHorarios[fechaStr] || false;
     };
-
+    
     const handleDateSelect = (date) => {
         if (isDateAvailable(date)) {
             const fechaStr = formatDate(date);
             setNuevaReservaData({...nuevaReservaData, fecha: fechaStr, hora_inicio: ''});
         }
+    };
+    
+    const cambiarMes = (direccion) => {
+        const nuevaFecha = new Date(currentDate);
+        nuevaFecha.setMonth(currentDate.getMonth() + direccion);
+        setCurrentDate(nuevaFecha);
+        
+        if (nuevaReservaData.profesional_id) {
+            cargarDisponibilidadMes(nuevaFecha, nuevaReservaData.profesional_id);
+        }
+    };
+    
+    const cambiarMesDisponibilidad = (direccion) => {
+        const nuevaFecha = new Date(disponibilidadFecha);
+        nuevaFecha.setMonth(disponibilidadFecha.getMonth() + direccion);
+        setDisponibilidadFecha(nuevaFecha);
+        cargarDisponibilidadDelMes(nuevaFecha, profesionalSeleccionadoDispo);
     };
 
     // ============================================
