@@ -1,6 +1,6 @@
 // sw.js - Service Worker para Alis Nails
 
-const CACHE_NAME = 'alisnails-v29';
+const CACHE_NAME = 'alisnails-v47';
 const urlsToCache = [
   '/alisnails/',
   '/alisnails/index.html',
@@ -17,7 +17,14 @@ const urlsToCache = [
   '/alisnails/icons/icon-152x152.png',
   '/alisnails/icons/icon-192x192.png',
   '/alisnails/icons/icon-384x384.png',
-  '/alisnails/icons/icon-512x512.png'
+  '/alisnails/icons/icon-512x512.png',
+  '/alisnails/vendor/react.production.min.js',
+  '/alisnails/vendor/react-dom.production.min.js',
+  '/alisnails/vendor/babel.min.js',
+  '/alisnails/vendor/bcrypt.min.js',
+  '/alisnails/vendor/tailwind-browser.js',
+  '/alisnails/vendor/lucide/lucide.css',
+  '/alisnails/vendor/lucide/lucide.woff2'
 ];
 
 // ============================================
