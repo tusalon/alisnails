@@ -1,6 +1,6 @@
 // sw.js - Service Worker para Alis Nails
 
-const CACHE_NAME = 'alisnails-v49';
+const CACHE_NAME = 'alisnails-v56';
 const urlsToCache = [
   '/alisnails/',
   '/alisnails/index.html',
